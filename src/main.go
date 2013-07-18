@@ -19,7 +19,7 @@ import (
     "sort"
 )
 
-var fileName, urlPrefix string;
+var fileName, urlPrefix, inputFileFormat string;
 var maxUrls int;
 var showHits, showStatistics, fullDisplay bool;
 
@@ -49,14 +49,27 @@ func (s ByReverseCount) Less(i, j int) bool {
     return s.Elems[j].HitCount < s.Elems[i].HitCount
 }
 
+// Get the URL entry, should be changed to something more flexible :)
+// @TODO change this
 func parseLine (line string) string {
-    // Get the URL entry, should be changed to something more flexible :)
-    // @TODO change this
-    url := strings.Split(strings.Split(line, "uri=")[1], " ref=")[0];
-    return url[1:len(url)-1];
+
+    switch inputFileFormat {
+        case "nginx" : {
+            url := strings.Split(strings.Split(line, "uri=")[1], " ref=")[0];
+            return url[1:len(url)-1];
+        };
+
+        case "cloudfront" : {
+            return strings.Split(line, "\t")[7];
+        }
+    }
+
+    return "";
 }
 
 func init() {
+    flag.StringVar(&inputFileFormat, "fmt", "nginx", "Set the input file format. Can be: nginx, apache, cloudfront. Default: nginx");
+
     flag.StringVar(&fileName, "f", "", "Set the name of the file to be parsed, default empty");
 
     flag.IntVar(&maxUrls, "l", 0, "Set the number of lines to be parsed, default, all, 0 = all");
@@ -67,7 +80,7 @@ func init() {
 
     flag.BoolVar(&showStatistics, "s", false, "Show statistics for hits of the urls, default false");
 
-    flag.BoolVar(&fullDisplay, "-fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches");
+    flag.BoolVar(&fullDisplay, "fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches but limit and prefix");
 }
 
 func main() {
@@ -91,12 +104,17 @@ func main() {
     largestHit := 0;
     largestHitURL := "";
 
+    if (inputFileFormat == "cloudfront") {
+        r.ReadLine();
+        r.ReadLine();
+    }
+
     s, _, e := r.ReadLine();
     urlCount := 0;
     for e == nil {
         url := parseLine(string(s));
         if (fullDisplay) {
-            fmt.Println(url);
+            fmt.Printf("%s%s\n", urlPrefix, url);
         } else {
             urlHits[Key(url)] += 1;
         }
