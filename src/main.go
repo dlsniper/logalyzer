@@ -22,7 +22,7 @@ import (
 )
 
 var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType string;
-var maxUrls, aggregateEveryNthFiles uint;
+var maxUrls, aggregateEveryNthFiles, showOnlyFirstNthUrls, showSeparatorEveryNthUrls uint;
 var showHits, showStatistics, fullDisplay, aggregateData, verbose bool;
 
 type Key string
@@ -147,6 +147,10 @@ func init() {
     flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
 
     flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
+
+    flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
+
+    flag.UintVar(&showSeparatorEveryNthUrls, "su", 100, "When this is used, it will display will display a separator every Nth accessed URLs. If 0 is passed then all URLs will be shown it will fallback to default, 100. This must be used with -s.");
 }
 
 func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
@@ -173,11 +177,23 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
 
             fmt.Println("Sorted order:");
 
+            i:=0;
+            uniqueUrls := len(sortedUrls);
             for _, sortedUrl := range sortedUrls {
                 fmt.Printf("URL %s%s: hits: %d\n", urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                i++;
+
+                if (uint(i) == showOnlyFirstNthUrls) {
+                    break;
+                }
+
+                if (uint(i) == showSeparatorEveryNthUrls) {
+                    fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrls);
+                }
             }
 
             fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
+            fmt.Printf("Total unique URLs: %d\n", uniqueUrls);
             fmt.Printf("Total URLs: %d\n", urlCount);
         } else {
             for key, value := range *urlHits {
