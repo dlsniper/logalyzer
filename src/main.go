@@ -21,9 +21,9 @@ import (
     "regexp"
 )
 
-var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName string;
+var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType string;
 var maxUrls, aggregateEveryNthFiles uint;
-var showHits, showStatistics, fullDisplay, aggregateData bool;
+var showHits, showStatistics, fullDisplay, aggregateData, verbose bool;
 
 type Key string
 type HitCount uint
@@ -53,20 +53,70 @@ func (s ByReverseCount) Less(i, j int) bool {
 
 // Get the URL entry, should be changed to something more flexible :)
 // @TODO change this
-func parseLine (line string) string {
+func parseLine (line string) (string, bool) {
+
+    var match bool;
 
     switch inputFileFormat {
         case "nginx" : {
             url := strings.Split(strings.Split(line, "uri=")[1], " ref=")[0];
-            return url[1:len(url)-1];
+
+            rt := strings.Split(strings.Split(line, "method=")[1], " status=")[0];
+
+            switch requestType {
+                case "" : {
+                    match = true;
+                }
+                default : {
+                    match = rt == requestType;
+                }
+            }
+
+            return url[1:len(url)-1], match;
         };
 
         case "cloudfront" : {
-            return strings.Split(line, "\t")[7];
+            splitUrl := strings.Split(line, "\t");
+            if (len(splitUrl) < 14) {
+                return "", false;
+            }
+
+            cfRT := splitUrl[13];
+
+            switch cfRequestType {
+                case "" : {
+                    match = true;
+                }
+
+                case "Pass" : {
+                    match = cfRT == "RefreshHit" || cfRT == "Miss";
+                }
+
+                case "Exceed" : {
+                    match = cfRT == "LimitExceded" || cfRT == "CapacityExceeded";
+                }
+
+                default: {
+                    match = cfRT == cfRequestType;
+                }
+            }
+
+            rt := splitUrl[5];
+
+            switch requestType {
+                case "" : {
+                    match = true;
+                }
+                default : {
+                    match = rt == requestType;
+                }
+            }
+
+            return splitUrl[7], match;
         }
     }
 
-    return "";
+    return "", false;
 }
 
 func init() {
@@ -91,6 +141,12 @@ func init() {
     flag.BoolVar(&aggregateData, "a", false, "Aggregate data from all input files. Must be used with -dir option.");
 
     flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
+
+    flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
+
+    flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
+
+    flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
 }
 
 func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
@@ -171,8 +227,14 @@ func main() {
     urlHits := make(map [Key]HitCount);
 
     var url string;
+    var valid bool;
     var fileNumber uint = 0;
+    fileCount := len(fileList);
+
     for _, fileName := range fileList {
+        if (verbose) {
+            fmt.Printf("%d/%d file: %s\n", fileNumber+1, fileCount, fileName);
+        }
 
         f, err := os.Open(fileName);
         if err != nil {
@@ -193,14 +255,19 @@ func main() {
 
         s, _, e := r.ReadLine();
         for e == nil {
-            url = parseLine(string(s));
+            url, valid = parseLine(string(s));
+
+            s, _, e = r.ReadLine();
+
+            if (!valid) {
+                continue;
+            }
+
             if (fullDisplay) {
                 fmt.Printf("%s%s\n", urlPrefix, url);
             } else {
                 urlHits[Key(url)] += 1;
             }
-
-            s, _, e = r.ReadLine();
 
             urlCount++;
             if (maxUrls != 0 && urlCount > maxUrls) {
