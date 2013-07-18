@@ -21,7 +21,7 @@ import (
 
 var fileName, urlPrefix string;
 var maxUrls int;
-var showHits, showStatistics bool;
+var showHits, showStatistics, fullDisplay bool;
 
 type Key string
 type HitCount int
@@ -50,7 +50,8 @@ func (s ByReverseCount) Less(i, j int) bool {
 }
 
 func parseLine (line string) string {
-    // Get the URL entry
+    // Get the URL entry, should be changed to something more flexible :)
+    // @TODO change this
     url := strings.Split(strings.Split(line, "uri=")[1], " ref=")[0];
     return url[1:len(url)-1];
 }
@@ -65,6 +66,8 @@ func init() {
     flag.StringVar(&urlPrefix, "p", "", "Set the prefix for the urls to be displayed, default empty");
 
     flag.BoolVar(&showStatistics, "s", false, "Show statistics for hits of the urls, default false");
+
+    flag.BoolVar(&fullDisplay, "-fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches");
 }
 
 func main() {
@@ -91,16 +94,25 @@ func main() {
     s, _, e := r.ReadLine();
     urlCount := 0;
     for e == nil {
-        line := parseLine(string(s));
-        urlHits[Key(line)] += 1;
+        url := parseLine(string(s));
+        if (fullDisplay) {
+            fmt.Println(url);
+        } else {
+            urlHits[Key(url)] += 1;
+        }
 
         s, _, e = r.ReadLine();
+
         urlCount++;
         if (maxUrls != 0 && urlCount > maxUrls) {
             break;
         }
     }
     f.Close();
+
+    if (fullDisplay) {
+        return;
+    }
 
     if (showHits) {
         if (showStatistics) {
