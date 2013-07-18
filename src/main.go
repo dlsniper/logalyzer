@@ -22,11 +22,11 @@ import (
 )
 
 var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName string;
-var maxUrls int;
+var maxUrls, aggregateEveryNthFiles uint;
 var showHits, showStatistics, fullDisplay, aggregateData bool;
 
 type Key string
-type HitCount int
+type HitCount uint
 
 type Elem struct {
     Key
@@ -78,7 +78,7 @@ func init() {
 
     flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
 
-    flag.IntVar(&maxUrls, "l", 0, "Number of lines to be parsed, default, all, 0 = all.");
+    flag.UintVar(&maxUrls, "l", 0, "Number of lines to be parsed, default, all, 0 = all.");
 
     flag.BoolVar(&showHits, "h", false, "Show the hits for the urls, default false.");
 
@@ -89,21 +89,23 @@ func init() {
     flag.BoolVar(&fullDisplay, "fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches but limit and prefix.");
 
     flag.BoolVar(&aggregateData, "a", false, "Aggregate data from all input files. Must be used with -dir option.");
+
+    flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
 }
 
-func displayOutput(urlHits map[Key]HitCount, urlCount int) {
+func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
 
-    largestHit := 0;
+    var largestHit uint = 0;
     largestHitURL := "";
 
     if (showHits) {
         if (showStatistics) {
 
-            sortedUrls := make(Elems, 0, len(urlHits))
+            sortedUrls := make(Elems, 0, len(*urlHits))
 
-            for key, value := range urlHits {
-                if (int(value) > int(largestHit)) {
-                    largestHit = int(value);
+            for key, value := range *urlHits {
+                if (uint(value) > uint(largestHit)) {
+                    largestHit = uint(value);
 
                     largestHitURL = string(key);
                 }
@@ -122,12 +124,12 @@ func displayOutput(urlHits map[Key]HitCount, urlCount int) {
             fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
             fmt.Printf("Total URLs: %d\n", urlCount);
         } else {
-            for key, value := range urlHits {
+            for key, value := range *urlHits {
                 fmt.Printf("URL: %s%s hits: %d\n", urlPrefix, key, value);
             }
         }
     } else {
-        for key, _ := range urlHits {
+        for key, _ := range *urlHits {
             fmt.Printf("%s%s\n", urlPrefix, key);
         }
     }
@@ -165,9 +167,11 @@ func main() {
         fileList[0] = fileName;
     }
 
-    urlCount := 0;
+    var urlCount uint = 0;
     urlHits := make(map [Key]HitCount);
 
+    var url string;
+    var fileNumber uint = 0;
     for _, fileName := range fileList {
 
         f, err := os.Open(fileName);
@@ -175,8 +179,6 @@ func main() {
             fmt.Printf("Error opening file: %v\n",err);
             os.Exit(1);
         }
-
-        defer f.Close();
 
         r := bufio.NewReader(f);
 
@@ -191,7 +193,7 @@ func main() {
 
         s, _, e := r.ReadLine();
         for e == nil {
-            url := parseLine(string(s));
+            url = parseLine(string(s));
             if (fullDisplay) {
                 fmt.Printf("%s%s\n", urlPrefix, url);
             } else {
@@ -212,14 +214,22 @@ func main() {
         }
 
         if (!aggregateData) {
-            displayOutput(urlHits, urlCount);
+            displayOutput(&urlHits, urlCount);
             urlCount = 0;
             urlHits = make(map [Key]HitCount);
+        } else if (aggregateEveryNthFiles != 0) {
+            if (fileNumber % aggregateEveryNthFiles == 0) {
+                displayOutput(&urlHits, urlCount);
+                urlCount = 0;
+                urlHits = make(map [Key]HitCount);
+            }
         }
+
+        fileNumber++;
     }
 
     if (aggregateData) {
-        displayOutput(urlHits, urlCount);
+        displayOutput(&urlHits, urlCount);
     }
 
 }
