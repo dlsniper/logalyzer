@@ -19,6 +19,7 @@ import (
     "sort"
     "io/ioutil"
     "regexp"
+    "runtime"
 )
 
 var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType string;
@@ -53,15 +54,15 @@ func (s ByReverseCount) Less(i, j int) bool {
 
 // Get the URL entry, should be changed to something more flexible :)
 // @TODO change this
-func parseLine (line string) (string, bool) {
+func parseLine (line *string) (string, bool) {
 
     var match bool = true;
 
     switch inputFileFormat {
         case "nginx" : {
-            url := strings.Split(strings.Split(line, "uri=")[1], " ref=")[0];
+            url := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
 
-            rt := strings.Split(strings.Split(line, "method=")[1], " status=")[0];
+            rt := strings.Split(strings.Split(*line, "method=")[1], " status=")[0];
 
             switch requestType {
                 case "" : {
@@ -76,7 +77,7 @@ func parseLine (line string) (string, bool) {
         };
 
         case "cloudfront" : {
-            splitUrl := strings.Split(line, "\t");
+            splitUrl := strings.Split(*line, "\t");
             if (len(splitUrl) < 14) {
                 return "", false;
             }
@@ -161,7 +162,9 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
     if (showHits) {
         if (showStatistics) {
 
-            sortedUrls := make(Elems, 0, len(*urlHits))
+            uniqueUrlsCount := len(*urlHits);
+
+            sortedUrls := make(Elems, 0, uniqueUrlsCount)
 
             for key, value := range *urlHits {
                 if (uint(value) > uint(largestHit)) {
@@ -173,27 +176,33 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                 sortedUrls = append(sortedUrls, &Elem{key, value});
             }
 
+            *urlHits = make(map [Key]HitCount);
+
+            runtime.GC();
+
             sort.Sort(ByReverseCount{sortedUrls});
 
-            fmt.Println("Sorted order:");
+            runtime.GC();
+
+            fmt.Println("\n\nSorted order:");
 
             i:=0;
-            uniqueUrls := len(sortedUrls);
             for _, sortedUrl := range sortedUrls {
-                fmt.Printf("URL %s%s: hits: %d\n", urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
                 i++;
+
+                fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
 
                 if (uint(i) == showOnlyFirstNthUrls) {
                     break;
                 }
 
                 if (uint(i) == showSeparatorEveryNthUrls) {
-                    fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrls);
+                    fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrlsCount);
                 }
             }
 
             fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
-            fmt.Printf("Total unique URLs: %d\n", uniqueUrls);
+            fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
             fmt.Printf("Total URLs: %d\n", urlCount);
         } else {
             for key, value := range *urlHits {
@@ -227,14 +236,21 @@ func main() {
             log.Fatal(err);
         }
 
-        files, _ := ioutil.ReadDir(directoryName);
+        files, err := ioutil.ReadDir(directoryName);
+        if (err != nil) {
+            log.Fatal(err);
+        }
 
         for _, f := range files {
             if (!f.IsDir() && includeRegex.Match([]byte(f.Name()))) {
                 fileList = append(fileList, directoryName + f.Name());
             }
+
         }
 
+        files = []os.FileInfo{};
+
+        runtime.GC();
     } else {
         fileList[0] = fileName;
     }
@@ -242,7 +258,7 @@ func main() {
     var urlCount uint = 0;
     urlHits := make(map [Key]HitCount);
 
-    var url string;
+    var url, line string;
     var valid bool;
     var fileNumber uint = 0;
     fileCount := len(fileList);
@@ -254,24 +270,25 @@ func main() {
 
         f, err := os.Open(fileName);
         if err != nil {
-            fmt.Printf("Error opening file: %v\n",err);
-            os.Exit(1);
+            log.Fatalf("Error opening file: %v\n",err);
         }
 
         r := bufio.NewReader(f);
 
+        // @TODO change this
         if (inputFileFormat == "cloudfront") {
             r.ReadLine();
             r.ReadLine();
         }
 
-        if (!aggregateData) {
+        if (!aggregateData && verbose) {
             fmt.Printf("\n\nAnalyzing file: %s\n", fileName);
         }
 
         s, _, e := r.ReadLine();
         for e == nil {
-            url, valid = parseLine(string(s));
+            line = string(s);
+            url, valid = parseLine(&line);
 
             s, _, e = r.ReadLine();
 
@@ -308,8 +325,14 @@ func main() {
             }
         }
 
+        runtime.GC();
+
         fileNumber++;
     }
+
+    fileList = []string{};
+
+    runtime.GC();
 
     if (aggregateData) {
         displayOutput(&urlHits, urlCount);
