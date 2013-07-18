@@ -91,6 +91,10 @@ func main() {
         log.Fatalln("Filename not specified");
     }
 
+    if (showStatistics) {
+        showHits = true;
+    }
+
     urlHits := make(map [Key]HitCount);
 
     f, err := os.Open(fileName);
