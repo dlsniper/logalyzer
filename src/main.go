@@ -55,7 +55,7 @@ func (s ByReverseCount) Less(i, j int) bool {
 // @TODO change this
 func parseLine (line string) (string, bool) {
 
-    var match bool;
+    var match bool = true;
 
     switch inputFileFormat {
         case "nginx" : {
@@ -65,7 +65,7 @@ func parseLine (line string) (string, bool) {
 
             switch requestType {
                 case "" : {
-                    match = true;
+
                 }
                 default : {
                     match = rt == requestType;
@@ -85,7 +85,7 @@ func parseLine (line string) (string, bool) {
 
             switch cfRequestType {
                 case "" : {
-                    match = true;
+
                 }
 
                 case "Pass" : {
@@ -105,7 +105,7 @@ func parseLine (line string) (string, bool) {
 
             switch requestType {
                 case "" : {
-                    match = true;
+
                 }
                 default : {
                     match = rt == requestType;
