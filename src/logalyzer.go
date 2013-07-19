@@ -196,8 +196,12 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                     break;
                 }
 
-                if (uint(i) == showSeparatorEveryNthUrls) {
-                    fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrlsCount);
+                if (uint(i) % showSeparatorEveryNthUrls == 0) {
+                    if (showSeparatorEveryNthUrls == 0) {
+                        fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrlsCount);
+                    } else {
+                        fmt.Printf("============ %d/%d (%d total)=================================================\n", i, showOnlyFirstNthUrls, uniqueUrlsCount);
+                    }
                 }
             }
 
