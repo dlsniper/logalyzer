@@ -184,8 +184,6 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
 
             runtime.GC();
 
-            fmt.Println("\n\nSorted order:");
-
             i:=0;
             for _, sortedUrl := range sortedUrls {
                 i++;
