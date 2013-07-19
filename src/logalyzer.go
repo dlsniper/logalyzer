@@ -266,8 +266,10 @@ func main() {
     fileCount := len(fileList);
 
     for _, fileName := range fileList {
+        fileNumber++;
+
         if (verbose) {
-            fmt.Printf("%d/%d file: %s\n", fileNumber+1, fileCount, fileName);
+            fmt.Printf("%d/%d file: %s\n", fileNumber, fileCount, fileName);
         }
 
         f, err := os.Open(fileName);
@@ -312,7 +314,7 @@ func main() {
         f.Close();
 
         if (fullDisplay) {
-            return;
+            continue;
         }
 
         if (!aggregateData) {
@@ -328,8 +330,6 @@ func main() {
         }
 
         runtime.GC();
-
-        fileNumber++;
     }
 
     fileList = []string{};
