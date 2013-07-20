@@ -24,7 +24,7 @@ import (
 
 var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType string;
 var maxUrls, aggregateEveryNthFiles, showOnlyFirstNthUrls, showSeparatorEveryNthUrls uint;
-var showHits, showStatistics, fullDisplay, aggregateData, verbose bool;
+var showHits, showStatistics, showHumanStatistics, fullDisplay, aggregateData, verbose bool;
 
 type Key string
 type HitCount uint
@@ -135,7 +135,9 @@ func init() {
 
     flag.StringVar(&urlPrefix, "p", "", "Set the prefix for the urls to be displayed, default empty.");
 
-    flag.BoolVar(&showStatistics, "s", false, "Show statistics for hits of the urls, default false.");
+    flag.BoolVar(&showStatistics, "s", false, "Compute statistics for hits of the urls, default false.");
+
+    flag.BoolVar(&showHumanStatistics, "hs", true, "Show statistics in human format, default true.");
 
     flag.BoolVar(&fullDisplay, "fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches but limit and prefix.");
 
@@ -188,7 +190,11 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
             for _, sortedUrl := range sortedUrls {
                 i++;
 
-                fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                if (showHumanStatistics) {
+                    fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                } else {
+                    fmt.Printf("%s%s\n", urlPrefix, sortedUrl.Key);
+                }
 
                 if (uint(i) == showOnlyFirstNthUrls) {
                     break;
@@ -203,9 +209,11 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                 }
             }
 
-            fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
-            fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
-            fmt.Printf("Total URLs: %d\n", urlCount);
+            if (showHumanStatistics) {
+                fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
+                fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
+                fmt.Printf("Total URLs: %d\n", urlCount);
+            }
         } else {
             for key, value := range *urlHits {
                 fmt.Printf("URL: %s%s hits: %d\n", urlPrefix, key, value);
