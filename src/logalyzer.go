@@ -129,6 +129,10 @@ func init() {
 
     flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
 
+    flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
+
+    flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
+
     flag.UintVar(&maxUrls, "l", 0, "Number of lines to be parsed, default, all, 0 = all.");
 
     flag.BoolVar(&showHits, "h", false, "Show the hits for the urls, default false.");
@@ -145,15 +149,11 @@ func init() {
 
     flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
 
-    flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
-
-    flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
-
-    flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
-
     flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
 
     flag.UintVar(&showSeparatorEveryNthUrls, "su", 100, "When this is used, it will display will display a separator every Nth accessed URLs. If 0 is passed then all URLs will be shown it will fallback to default, 100. This must be used with -s.");
+
+    flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
 }
 
 func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
