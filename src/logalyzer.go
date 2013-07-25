@@ -120,6 +120,14 @@ func parseLine (line *string) (string, int64, bool) {
                 case "url" : {
                     requestTimestamp = 0;
                 }
+                case "uhm" : {
+                    requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
+                    if (err != nil) {
+                        requestTimestamp = 0;
+                    } else {
+                        requestTimestamp = requestTime.Unix();
+                    }
+                }
                 case "hm" : {
                     requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
                     if (err != nil) {
@@ -166,7 +174,7 @@ func init() {
 
     flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
 
-    flag.StringVar(&aggregateBy, "ab", "url", "Aggregate by: url, hm (hits/minute). Default url");
+    flag.StringVar(&aggregateBy, "ab", "url", "Aggregate by: url, hm (hits/minute), uhm (url hits / minute for a specific url). Default url");
 
     flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
 
@@ -211,8 +219,11 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
 
                 if (showHumanStatistics) {
                     switch aggregateBy {
-                        case "url": {
+                        case "url" : {
                             fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                        }
+                        case "uhm" : {
+                            fmt.Printf("%d URL %s%s hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
                         }
                         case "hm" : {
                             fmt.Printf("%d Time: %s  hits: %d\n", i, sortedUrl.Key, sortedUrl.HitCount);
@@ -220,8 +231,11 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                     }
                 } else {
                     switch aggregateBy {
-                        case "url": {
+                        case "url" : {
                             fmt.Printf("%s%s\n", urlPrefix, sortedUrl.Key);
+                        }
+                        case "uhm" : {
+                            fmt.Printf("%s%s  %d\n", urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
                         }
                         case "hm" : {
                             fmt.Printf("%s  %d\n", sortedUrl.Key, sortedUrl.HitCount);
@@ -352,9 +366,10 @@ func main() {
                     case "hm" : {
                         urlHits[Key(fmt.Sprintf("%d", requestTimestamp))] += 1;
                     }
+                    case "uhm" : {
+                        urlHits[Key(url + " "+ fmt.Sprintf("%d", requestTimestamp))] += 1;
+                    }
                 }
-
-
             }
 
             urlCount++;
