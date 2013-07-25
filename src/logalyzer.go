@@ -20,9 +20,10 @@ import (
     "io/ioutil"
     "regexp"
     "runtime"
+    "time"
 )
 
-var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType string;
+var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType, aggregateBy string;
 var maxUrls, aggregateEveryNthFiles, showOnlyFirstNthUrls, showSeparatorEveryNthUrls uint;
 var showHits, showStatistics, showHumanStatistics, fullDisplay, aggregateData, verbose bool;
 
@@ -54,7 +55,7 @@ func (s ByReverseCount) Less(i, j int) bool {
 
 // Get the URL entry, should be changed to something more flexible :)
 // @TODO change this
-func parseLine (line *string) (string, bool) {
+func parseLine (line *string) (string, int64, bool) {
 
     var match bool = true;
 
@@ -73,13 +74,13 @@ func parseLine (line *string) (string, bool) {
                 }
             }
 
-            return url[1:len(url)-1], match;
+            return url[1:len(url)-1], 0, match;
         };
 
         case "cloudfront" : {
             splitUrl := strings.Split(*line, "\t");
             if (len(splitUrl) < 14) {
-                return "", false;
+                return "", 0, false;
             }
 
             cfRT := splitUrl[13];
@@ -113,11 +114,27 @@ func parseLine (line *string) (string, bool) {
                 }
             }
 
-            return splitUrl[7], match;
+            var requestTimestamp int64 = 0;
+
+            switch aggregateBy {
+                case "url" : {
+                    requestTimestamp = 0;
+                }
+                case "hm" : {
+                    requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
+                    if (err != nil) {
+                        requestTimestamp = 0;
+                    } else {
+                        requestTimestamp = requestTime.Unix();
+                    }
+                }
+            }
+
+            return splitUrl[7], requestTimestamp, match;
         }
     }
 
-    return "", false;
+    return "", 0, false;
 }
 
 func init() {
@@ -148,6 +165,8 @@ func init() {
     flag.BoolVar(&aggregateData, "a", false, "Aggregate data from all input files. Must be used with -dir option.");
 
     flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
+
+    flag.StringVar(&aggregateBy, "ab", "url", "Aggregate by: url, hm (hits/minute). Default url");
 
     flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
 
@@ -191,9 +210,23 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                 i++;
 
                 if (showHumanStatistics) {
-                    fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                    switch aggregateBy {
+                        case "url": {
+                            fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
+                        }
+                        case "hm" : {
+                            fmt.Printf("%d Time: %s  hits: %d\n", i, sortedUrl.Key, sortedUrl.HitCount);
+                        }
+                    }
                 } else {
-                    fmt.Printf("%s%s\n", urlPrefix, sortedUrl.Key);
+                    switch aggregateBy {
+                        case "url": {
+                            fmt.Printf("%s%s\n", urlPrefix, sortedUrl.Key);
+                        }
+                        case "hm" : {
+                            fmt.Printf("%s  %d\n", sortedUrl.Key, sortedUrl.HitCount);
+                        }
+                    }
                 }
 
                 if (uint(i) == showOnlyFirstNthUrls) {
@@ -209,10 +242,10 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
                 }
             }
 
-            if (showHumanStatistics) {
+            if (showHumanStatistics && aggregateBy == "url") {
                 fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
                 fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
-                fmt.Printf("Total URLs: %d\n", urlCount);
+                fmt.Printf("Total URLs accesed: %d\n", urlCount);
             }
         } else {
             for key, value := range *urlHits {
@@ -269,6 +302,7 @@ func main() {
     urlHits := make(map [Key]HitCount);
 
     var url, line string;
+    var requestTimestamp int64;
     var valid bool;
     var fileNumber uint = 0;
     fileCount := len(fileList);
@@ -300,7 +334,7 @@ func main() {
         s, _, e := r.ReadLine();
         for e == nil {
             line = string(s);
-            url, valid = parseLine(&line);
+            url, requestTimestamp, valid = parseLine(&line);
 
             s, _, e = r.ReadLine();
 
@@ -311,7 +345,16 @@ func main() {
             if (fullDisplay) {
                 fmt.Printf("%s%s\n", urlPrefix, url);
             } else {
-                urlHits[Key(url)] += 1;
+                switch aggregateBy {
+                    case "url" : {
+                        urlHits[Key(url)] += 1;
+                    }
+                    case "hm" : {
+                        urlHits[Key(fmt.Sprintf("%d", requestTimestamp))] += 1;
+                    }
+                }
+
+
             }
 
             urlCount++;
