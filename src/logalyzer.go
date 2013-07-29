@@ -21,11 +21,12 @@ import (
     "regexp"
     "runtime"
     "time"
+    "net/url"
 )
 
 var fileName, urlPrefix, inputFileFormat, fileRegEx, urlRegEx, directoryName, requestType, cfRequestType, aggregateBy string;
 var maxUrls, aggregateEveryNthFiles, showOnlyFirstNthUrls, showSeparatorEveryNthUrls uint;
-var showHits, showStatistics, showHumanStatistics, fullDisplay, aggregateData, verbose bool;
+var showHits, showStatistics, showHumanStatistics, fullDisplay, aggregateData, verbose, ignoreQueryString bool;
 var compiledFileRegEx, compiledUrlRegEx *regexp.Regexp;
 
 type Key string
@@ -62,9 +63,9 @@ func parseLine (line *string) (string, int64, bool) {
 
     switch inputFileFormat {
         case "nginx" : {
-            url := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
+            stringUrl := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
 
-            if (!compiledUrlRegEx.Match([]byte(url))) {
+            if (!compiledUrlRegEx.Match([]byte(stringUrl))) {
                 return "", 0, false;
             }
 
@@ -79,7 +80,7 @@ func parseLine (line *string) (string, int64, bool) {
                 }
             }
 
-            return url[1:len(url)-1], 0, match;
+            return stringUrl[1:len(stringUrl)-1], 0, match;
         };
 
         case "cloudfront" : {
@@ -92,6 +93,18 @@ func parseLine (line *string) (string, int64, bool) {
 
             if (!compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
                 return "", 0, false;
+            }
+
+            stringUrl := splitUrl[7];
+
+            if (ignoreQueryString) {
+                parsedUrl, err := url.Parse(urlPrefix + stringUrl);
+                if (err != nil) {
+                    return "", 0, false;
+                }
+
+                stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery + "#" + parsedUrl.Fragment, "", -1);
+                stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery, "", -1);
             }
 
             switch cfRequestType {
@@ -147,7 +160,7 @@ func parseLine (line *string) (string, int64, bool) {
                 }
             }
 
-            return splitUrl[7], requestTimestamp, match;
+            return stringUrl, requestTimestamp, match;
         }
     }
 
@@ -164,6 +177,8 @@ func init() {
     flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
 
     flag.StringVar(&urlRegEx, "url", ".*", "Regex of the urls that will be matched, default all (.*)");
+
+    flag.BoolVar(&ignoreQueryString, "iqs", false, "Ignore the query string of the url, default false.");
 
     flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
 
@@ -391,7 +406,7 @@ func main() {
                     }
                     case "uhm" : {
                         if showHumanStatistics {
-                            urlHits[Key(url + " "+ time.Unix(requestTimestamp, 0).Format(time.RFC822))] += 1;
+                            urlHits[Key(url + " on "+ time.Unix(requestTimestamp, 0).Format(time.RFC822))] += 1;
                         } else {
                             urlHits[Key(url + " "+ fmt.Sprintf("%d", requestTimestamp))] += 1;
                         }
