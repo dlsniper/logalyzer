@@ -23,9 +23,10 @@ import (
     "time"
 )
 
-var fileName, urlPrefix, inputFileFormat, fileRegEx, directoryName, requestType, cfRequestType, aggregateBy string;
+var fileName, urlPrefix, inputFileFormat, fileRegEx, urlRegEx, directoryName, requestType, cfRequestType, aggregateBy string;
 var maxUrls, aggregateEveryNthFiles, showOnlyFirstNthUrls, showSeparatorEveryNthUrls uint;
 var showHits, showStatistics, showHumanStatistics, fullDisplay, aggregateData, verbose bool;
+var compiledFileRegEx, compiledUrlRegEx *regexp.Regexp;
 
 type Key string
 type HitCount uint
@@ -63,6 +64,10 @@ func parseLine (line *string) (string, int64, bool) {
         case "nginx" : {
             url := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
 
+            if (!compiledUrlRegEx.Match([]byte(url))) {
+                return "", 0, false;
+            }
+
             rt := strings.Split(strings.Split(*line, "method=")[1], " status=")[0];
 
             switch requestType {
@@ -84,6 +89,10 @@ func parseLine (line *string) (string, int64, bool) {
             }
 
             cfRT := splitUrl[13];
+
+            if (!compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
+                return "", 0, false;
+            }
 
             switch cfRequestType {
                 case "" : {
@@ -150,9 +159,11 @@ func init() {
 
     flag.StringVar(&fileName, "f", "", "Name of the file to be parsed, default empty.");
 
-    flag.StringVar(&fileRegEx, "fr", ".*", "Regex of the files to be parsed, default (.*) all. If used it will override -f. Must be used with -dir option.");
+    flag.StringVar(&fileRegEx, "fr", ".*", "Regex of the files to be parsed, default all (.*). If used it will override -f. Must be used with -dir option.");
 
     flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
+
+    flag.StringVar(&urlRegEx, "url", ".*", "Regex of the urls that will be matched, default all (.*)");
 
     flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
 
@@ -286,9 +297,10 @@ func main() {
     }
 
     var fileList []string;
+    var err error;
 
     if (fileName == "") {
-        includeRegex, err := regexp.Compile(fileRegEx);
+        compiledFileRegEx, err = regexp.Compile(fileRegEx);
         if err != nil {
             log.Fatal(err);
         }
@@ -299,7 +311,7 @@ func main() {
         }
 
         for _, f := range files {
-            if (!f.IsDir() && includeRegex.Match([]byte(f.Name()))) {
+            if (!f.IsDir() && compiledFileRegEx.Match([]byte(f.Name()))) {
                 fileList = append(fileList, directoryName + f.Name());
             }
 
@@ -310,6 +322,13 @@ func main() {
         runtime.GC();
     } else {
         fileList[0] = fileName;
+    }
+
+    if (urlRegEx != "") {
+        compiledUrlRegEx, err = regexp.Compile(urlRegEx);
+        if (err != nil) {
+            log.Fatal(err);
+        }
     }
 
     var urlCount uint = 0;
@@ -364,10 +383,18 @@ func main() {
                         urlHits[Key(url)] += 1;
                     }
                     case "hm" : {
-                        urlHits[Key(fmt.Sprintf("%d", requestTimestamp))] += 1;
+                        if showHumanStatistics {
+                            urlHits[Key(time.Unix(requestTimestamp, 0).Format(time.RFC822))] += 1;
+                        } else {
+                            urlHits[Key(fmt.Sprintf("%d", requestTimestamp))] += 1;
+                        }
                     }
                     case "uhm" : {
-                        urlHits[Key(url + " "+ fmt.Sprintf("%d", requestTimestamp))] += 1;
+                        if showHumanStatistics {
+                            urlHits[Key(url + " "+ time.Unix(requestTimestamp, 0).Format(time.RFC822))] += 1;
+                        } else {
+                            urlHits[Key(url + " "+ fmt.Sprintf("%d", requestTimestamp))] += 1;
+                        }
                     }
                 }
             }
