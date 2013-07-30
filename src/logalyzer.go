@@ -91,7 +91,7 @@ func parseLine (line *string) (string, int64, bool) {
 
             cfRT := splitUrl[13];
 
-            if (!compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
+            if (urlRegEx != "" && urlRegEx != ".*" && !compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
                 return "", 0, false;
             }
 
@@ -339,7 +339,7 @@ func main() {
         fileList[0] = fileName;
     }
 
-    if (urlRegEx != "") {
+    if (urlRegEx != "" && urlRegEx !=".*") {
         compiledUrlRegEx, err = regexp.Compile(urlRegEx);
         if (err != nil) {
             log.Fatal(err);
