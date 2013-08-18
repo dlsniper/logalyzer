@@ -55,6 +55,48 @@ func (s ByReverseCount) Less(i, j int) bool {
     return s.Elems[j].HitCount < s.Elems[i].HitCount
 }
 
+func init() {
+    flag.StringVar(&inputFileFormat, "fmt", "nginx", "Set the input file format. Can be: nginx, apache, cloudfront. Default: nginx");
+
+    flag.StringVar(&fileName, "f", "", "Name of the file to be parsed, default empty.");
+
+    flag.StringVar(&fileRegEx, "fr", ".*", "Regex of the files to be parsed, default all (.*). If used it will override -f. Must be used with -dir option.");
+
+    flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
+
+    flag.StringVar(&urlRegEx, "url", ".*", "Regex of the urls that will be matched, default all (.*)");
+
+    flag.BoolVar(&ignoreQueryString, "iqs", false, "Ignore the query string of the url, default false.");
+
+    flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
+
+    flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
+
+    flag.UintVar(&maxUrls, "l", 0, "Number of lines to be parsed, default, all, 0 = all.");
+
+    flag.BoolVar(&showHits, "h", false, "Show the hits for the urls, default false.");
+
+    flag.StringVar(&urlPrefix, "p", "", "Set the prefix for the urls to be displayed, default empty.");
+
+    flag.BoolVar(&showStatistics, "s", false, "Compute statistics for hits of the urls, default false.");
+
+    flag.BoolVar(&showHumanStatistics, "hs", true, "Show statistics in human format, default true.");
+
+    flag.BoolVar(&fullDisplay, "fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches but limit and prefix.");
+
+    flag.BoolVar(&aggregateData, "a", false, "Aggregate data from all input files. Must be used with -dir option.");
+
+    flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
+
+    flag.StringVar(&aggregateBy, "ab", "url", "Aggregate by: url, hm (hits/minute), uhm (url hits / minute for a specific url). Default url");
+
+    flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
+
+    flag.UintVar(&showSeparatorEveryNthUrls, "su", 100, "When this is used, it will display will display a separator every Nth accessed URLs. If 0 is passed then all URLs will be shown it will fallback to default, 100. This must be used with -s.");
+
+    flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
+}
+
 func parseNginxLine(line *string) (string, int64, bool) {
     var match bool = true;
 
@@ -157,11 +199,9 @@ func parseCloudfrontLine(line *string) (string, int64, bool) {
         }
     }
 
-    return stringUrl, requestTimestamp, match;
+    return stringUrl, requestTimestamp, match
 }
 
-// Get the URL entry, should be changed to something more flexible :)
-// @TODO change this
 func parseLine (line *string) (string, int64, bool) {
 
     switch inputFileFormat {
@@ -177,135 +217,119 @@ func parseLine (line *string) (string, int64, bool) {
     return "", 0, false
 }
 
-func init() {
-    flag.StringVar(&inputFileFormat, "fmt", "nginx", "Set the input file format. Can be: nginx, apache, cloudfront. Default: nginx");
+func showHumanStatsLine(i int64, line *Elem) {
+    switch aggregateBy {
+        case "url" : {
+            fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, line.Key, line.HitCount);
+        }
+        case "uhm" : {
+            fmt.Printf("%d URL %s%s hits: %d\n", i, urlPrefix, line.Key, line.HitCount);
+        }
+        case "hm" : {
+            fmt.Printf("%d Time: %s  hits: %d\n", i, line.Key, line.HitCount);
+        }
+    }
+}
 
-    flag.StringVar(&fileName, "f", "", "Name of the file to be parsed, default empty.");
+func showStatsLine(line *Elem) {
+    switch aggregateBy {
+        case "url" : {
+            fmt.Printf("%s%s\n", urlPrefix, line.Key);
+        }
+        case "uhm" : {
+            fmt.Printf("%s%s  %d\n", urlPrefix, line.Key, line.HitCount);
+        }
+        case "hm" : {
+            fmt.Printf("%s  %d\n", line.Key, line.HitCount);
+        }
+    }
+}
 
-    flag.StringVar(&fileRegEx, "fr", ".*", "Regex of the files to be parsed, default all (.*). If used it will override -f. Must be used with -dir option.");
+func sortUrls(urlHits *map[Key]HitCount) (Elems, uint64, string) {
+    uniqueUrlsCount := len(*urlHits);
+    sortedUrls := make(Elems, 0, uniqueUrlsCount);
 
-    flag.StringVar(&directoryName, "dir", "", "Directory name of where the files should be loaded from, default empty. If used it will override -f. Must be used with -fr option.");
+    var largestHit uint64 = 0;
+    var largestHitURL string = "";
 
-    flag.StringVar(&urlRegEx, "url", ".*", "Regex of the urls that will be matched, default all (.*)");
+    if (showHumanStatistics && aggregateBy == "url") {
+        for key, value := range *urlHits {
 
-    flag.BoolVar(&ignoreQueryString, "iqs", false, "Ignore the query string of the url, default false.");
+            if (uint64(value) > uint64(largestHit)) {
+                largestHit = uint64(value);
 
-    flag.StringVar(&requestType, "rt", "", "Type of the request: GET, POST, PUT and so on. If empty, all request will be processed. Default: empty");
+                largestHitURL = string(key);
+            }
 
-    flag.StringVar(&cfRequestType, "cfrt", "", "Type of the CloudFront request : Hit, RefreshHit, Miss, Pass(RefreshHit, Miss), LimitExceded, CapacityExceeded, Exceed(LimitExceded, CapacityExceeded), Error. If empty, all request will be processed. Default: empty");
 
-    flag.UintVar(&maxUrls, "l", 0, "Number of lines to be parsed, default, all, 0 = all.");
+            sortedUrls = append(sortedUrls, &Elem{key, value});
+        }
+    } else {
+        for key, value := range *urlHits {
+            sortedUrls = append(sortedUrls, &Elem{key, value});
+        }
+    }
 
-    flag.BoolVar(&showHits, "h", false, "Show the hits for the urls, default false.");
+    *urlHits = make(map [Key]HitCount);
 
-    flag.StringVar(&urlPrefix, "p", "", "Set the prefix for the urls to be displayed, default empty.");
+    runtime.GC();
 
-    flag.BoolVar(&showStatistics, "s", false, "Compute statistics for hits of the urls, default false.");
+    sort.Sort(ByReverseCount{sortedUrls});
 
-    flag.BoolVar(&showHumanStatistics, "hs", true, "Show statistics in human format, default true.");
+    runtime.GC();
 
-    flag.BoolVar(&fullDisplay, "fd", false, "Just extract the whole urls and do nothing else to process them. Overrides all other switches but limit and prefix.");
-
-    flag.BoolVar(&aggregateData, "a", false, "Aggregate data from all input files. Must be used with -dir option.");
-
-    flag.UintVar(&aggregateEveryNthFiles, "af", 0, "When this is used, it can aggregate data from the chunks of N files. If 0 is passed then all files will be aggregated. This must be used with -a.");
-
-    flag.StringVar(&aggregateBy, "ab", "url", "Aggregate by: url, hm (hits/minute), uhm (url hits / minute for a specific url). Default url");
-
-    flag.UintVar(&showOnlyFirstNthUrls, "tu", 0, "When this is used, it will display only the first N accessed URLs. If 0 is passed then all URLs will be shown. This must be used with -s.");
-
-    flag.UintVar(&showSeparatorEveryNthUrls, "su", 100, "When this is used, it will display will display a separator every Nth accessed URLs. If 0 is passed then all URLs will be shown it will fallback to default, 100. This must be used with -s.");
-
-    flag.BoolVar(&verbose, "v", false, "Verbose. Default no (false)");
+    return sortedUrls, largestHit, largestHitURL
 }
 
 func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
 
-    var largestHit uint = 0;
-    largestHitURL := "";
-
-    if (showHits) {
-        if (showStatistics) {
-
-            uniqueUrlsCount := len(*urlHits);
-
-            sortedUrls := make(Elems, 0, uniqueUrlsCount)
-
-            for key, value := range *urlHits {
-                if (uint(value) > uint(largestHit)) {
-                    largestHit = uint(value);
-
-                    largestHitURL = string(key);
-                }
-
-                sortedUrls = append(sortedUrls, &Elem{key, value});
-            }
-
-            *urlHits = make(map [Key]HitCount);
-
-            runtime.GC();
-
-            sort.Sort(ByReverseCount{sortedUrls});
-
-            runtime.GC();
-
-            i:=0;
-            for _, sortedUrl := range sortedUrls {
-                i++;
-
-                if (showHumanStatistics) {
-                    switch aggregateBy {
-                        case "url" : {
-                            fmt.Printf("%d URL %s%s: hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
-                        }
-                        case "uhm" : {
-                            fmt.Printf("%d URL %s%s hits: %d\n", i, urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
-                        }
-                        case "hm" : {
-                            fmt.Printf("%d Time: %s  hits: %d\n", i, sortedUrl.Key, sortedUrl.HitCount);
-                        }
-                    }
-                } else {
-                    switch aggregateBy {
-                        case "url" : {
-                            fmt.Printf("%s%s\n", urlPrefix, sortedUrl.Key);
-                        }
-                        case "uhm" : {
-                            fmt.Printf("%s%s  %d\n", urlPrefix, sortedUrl.Key, sortedUrl.HitCount);
-                        }
-                        case "hm" : {
-                            fmt.Printf("%s  %d\n", sortedUrl.Key, sortedUrl.HitCount);
-                        }
-                    }
-                }
-
-                if (uint(i) == showOnlyFirstNthUrls) {
-                    break;
-                }
-
-                if (uint(i) % showSeparatorEveryNthUrls == 0) {
-                    if (showSeparatorEveryNthUrls == 0) {
-                        fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrlsCount);
-                    } else {
-                        fmt.Printf("============ %d/%d (%d total)=================================================\n", i, showOnlyFirstNthUrls, uniqueUrlsCount);
-                    }
-                }
-            }
-
-            if (showHumanStatistics && aggregateBy == "url") {
-                fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
-                fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
-                fmt.Printf("Total URLs accesed: %d\n", urlCount);
-            }
-        } else {
-            for key, value := range *urlHits {
-                fmt.Printf("URL: %s%s hits: %d\n", urlPrefix, key, value);
-            }
-        }
-    } else {
+    if (!showHits) {
         for key, _ := range *urlHits {
             fmt.Printf("%s%s\n", urlPrefix, key);
         }
+
+        return
+    }
+
+    if (!showStatistics) {
+        for key, value := range *urlHits {
+            fmt.Printf("URL: %s%s hits: %d\n", urlPrefix, key, value);
+        }
+
+        return
+    }
+
+    uniqueUrlsCount := len(*urlHits);
+
+    sortedUrls, largestHit, largestHitURL := sortUrls(urlHits);
+
+    var i int64 = 0;
+    for _, sortedUrl := range sortedUrls {
+        i++;
+
+        if (showHumanStatistics) {
+            showHumanStatsLine(i, sortedUrl);
+        } else {
+            showStatsLine(sortedUrl);
+        }
+
+        if (uint(i) == showOnlyFirstNthUrls) {
+            break;
+        }
+
+        if (uint(i) % showSeparatorEveryNthUrls == 0) {
+            if (showSeparatorEveryNthUrls == 0) {
+                fmt.Printf("============ %d/%d ===========================================================\n", i, uniqueUrlsCount);
+            } else {
+                fmt.Printf("============ %d/%d (%d total)=================================================\n", i, showOnlyFirstNthUrls, uniqueUrlsCount);
+            }
+        }
+    }
+
+    if (showHumanStatistics && aggregateBy == "url") {
+        fmt.Printf("\nBiggest URL: %s%s hits: %d\n", urlPrefix, largestHitURL, largestHit);
+        fmt.Printf("Total unique URLs: %d\n", uniqueUrlsCount);
+        fmt.Printf("Total URLs accesed: %d\n", urlCount);
     }
 }
 
@@ -443,6 +467,8 @@ func main() {
         f.Close();
 
         if (fullDisplay) {
+            runtime.GC();
+
             continue;
         }
 
