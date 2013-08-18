@@ -121,7 +121,7 @@ func parseNginxLine(line *string) (string, int64, bool) {
 }
 
 func parseCloudfrontLine(line *string) (string, int64, bool) {
-    var match bool;
+    var match bool = true;
 
     splitUrl := strings.Split(*line, "\t");
     if (len(splitUrl) < 14) {
