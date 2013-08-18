@@ -55,116 +55,126 @@ func (s ByReverseCount) Less(i, j int) bool {
     return s.Elems[j].HitCount < s.Elems[i].HitCount
 }
 
+func parseNginxLine(line *string) (string, int64, bool) {
+    var match bool = true;
+
+    stringUrl := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
+
+    if (!compiledUrlRegEx.Match([]byte(stringUrl))) {
+        return "", 0, false;
+    }
+
+    rt := strings.Split(strings.Split(*line, "method=")[1], " status=")[0];
+
+    switch requestType {
+        case "" : {
+
+        }
+        default : {
+            match = rt == requestType;
+        }
+    }
+
+    return stringUrl[1:len(stringUrl)-1], 0, match
+}
+
+func parseCloudfrontLine(line *string) (string, int64, bool) {
+    var match bool;
+
+    splitUrl := strings.Split(*line, "\t");
+    if (len(splitUrl) < 14) {
+        return "", 0, false;
+    }
+
+    cfRT := splitUrl[13];
+
+    if (urlRegEx != "" && urlRegEx != ".*" && !compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
+        return "", 0, false;
+    }
+
+    stringUrl := splitUrl[7];
+
+    if (ignoreQueryString) {
+        parsedUrl, err := url.Parse(urlPrefix + stringUrl);
+        if (err != nil) {
+            return "", 0, false;
+        }
+
+        stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery + "#" + parsedUrl.Fragment, "", -1);
+        stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery, "", -1);
+    }
+
+    switch cfRequestType {
+        case "" : {
+
+        }
+
+        case "Pass" : {
+            match = cfRT == "RefreshHit" || cfRT == "Miss";
+        }
+
+        case "Exceed" : {
+            match = cfRT == "LimitExceded" || cfRT == "CapacityExceeded";
+        }
+
+        default: {
+            match = cfRT == cfRequestType;
+        }
+    }
+
+    rt := splitUrl[5];
+
+    switch requestType {
+        case "" : {
+
+        }
+        default : {
+            match = rt == requestType;
+        }
+    }
+
+    var requestTimestamp int64 = 0;
+
+    switch aggregateBy {
+        case "url" : {
+            requestTimestamp = 0;
+        }
+        case "uhm" : {
+            requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
+            if (err != nil) {
+                requestTimestamp = 0;
+            } else {
+                requestTimestamp = requestTime.Unix();
+            }
+        }
+        case "hm" : {
+            requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
+            if (err != nil) {
+                requestTimestamp = 0;
+            } else {
+                requestTimestamp = requestTime.Unix();
+            }
+        }
+    }
+
+    return stringUrl, requestTimestamp, match;
+}
+
 // Get the URL entry, should be changed to something more flexible :)
 // @TODO change this
 func parseLine (line *string) (string, int64, bool) {
 
-    var match bool = true;
-
     switch inputFileFormat {
         case "nginx" : {
-            stringUrl := strings.Split(strings.Split(*line, "uri=")[1], " ref=")[0];
-
-            if (!compiledUrlRegEx.Match([]byte(stringUrl))) {
-                return "", 0, false;
-            }
-
-            rt := strings.Split(strings.Split(*line, "method=")[1], " status=")[0];
-
-            switch requestType {
-                case "" : {
-
-                }
-                default : {
-                    match = rt == requestType;
-                }
-            }
-
-            return stringUrl[1:len(stringUrl)-1], 0, match;
+            return parseNginxLine(line);
         };
 
         case "cloudfront" : {
-            splitUrl := strings.Split(*line, "\t");
-            if (len(splitUrl) < 14) {
-                return "", 0, false;
-            }
-
-            cfRT := splitUrl[13];
-
-            if (urlRegEx != "" && urlRegEx != ".*" && !compiledUrlRegEx.Match([]byte(splitUrl[7]))) {
-                return "", 0, false;
-            }
-
-            stringUrl := splitUrl[7];
-
-            if (ignoreQueryString) {
-                parsedUrl, err := url.Parse(urlPrefix + stringUrl);
-                if (err != nil) {
-                    return "", 0, false;
-                }
-
-                stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery + "#" + parsedUrl.Fragment, "", -1);
-                stringUrl = strings.Replace(stringUrl, "?" + parsedUrl.RawQuery, "", -1);
-            }
-
-            switch cfRequestType {
-                case "" : {
-
-                }
-
-                case "Pass" : {
-                    match = cfRT == "RefreshHit" || cfRT == "Miss";
-                }
-
-                case "Exceed" : {
-                    match = cfRT == "LimitExceded" || cfRT == "CapacityExceeded";
-                }
-
-                default: {
-                    match = cfRT == cfRequestType;
-                }
-            }
-
-            rt := splitUrl[5];
-
-            switch requestType {
-                case "" : {
-
-                }
-                default : {
-                    match = rt == requestType;
-                }
-            }
-
-            var requestTimestamp int64 = 0;
-
-            switch aggregateBy {
-                case "url" : {
-                    requestTimestamp = 0;
-                }
-                case "uhm" : {
-                    requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
-                    if (err != nil) {
-                        requestTimestamp = 0;
-                    } else {
-                        requestTimestamp = requestTime.Unix();
-                    }
-                }
-                case "hm" : {
-                    requestTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", splitUrl[0], splitUrl[1][0:5]));
-                    if (err != nil) {
-                        requestTimestamp = 0;
-                    } else {
-                        requestTimestamp = requestTime.Unix();
-                    }
-                }
-            }
-
-            return stringUrl, requestTimestamp, match;
+            return parseCloudfrontLine(line);
         }
     }
 
-    return "", 0, false;
+    return "", 0, false
 }
 
 func init() {
@@ -299,9 +309,8 @@ func displayOutput(urlHits *map[Key]HitCount, urlCount uint) {
     }
 }
 
-func main() {
-
-    flag.Parse();
+func checkArguments() {
+    var err error;
 
     if (fileName == "" && directoryName == "" && fileRegEx == "")  {
         log.Fatalln("Filename or directory not specified");
@@ -311,6 +320,15 @@ func main() {
         showHits = true;
     }
 
+    if (urlRegEx != "" && urlRegEx !=".*") {
+        compiledUrlRegEx, err = regexp.Compile(urlRegEx);
+        if (err != nil) {
+            log.Fatal(err);
+        }
+    }
+}
+
+func getFileList() []string {
     var fileList []string;
     var err error;
 
@@ -339,21 +357,24 @@ func main() {
         fileList[0] = fileName;
     }
 
-    if (urlRegEx != "" && urlRegEx !=".*") {
-        compiledUrlRegEx, err = regexp.Compile(urlRegEx);
-        if (err != nil) {
-            log.Fatal(err);
-        }
-    }
+    return fileList
+}
+
+func main() {
+
+    flag.Parse();
+
+    checkArguments();
+
+    fileList := getFileList();
 
     var urlCount uint = 0;
-    urlHits := make(map [Key]HitCount);
-
     var url, line string;
     var requestTimestamp int64;
     var valid bool;
     var fileNumber uint = 0;
     fileCount := len(fileList);
+    urlHits := make(map [Key]HitCount);
 
     for _, fileName := range fileList {
         fileNumber++;
@@ -366,10 +387,10 @@ func main() {
         if err != nil {
             log.Fatalf("Error opening file: %v\n",err);
         }
+        defer f.Close();
 
         r := bufio.NewReader(f);
 
-        // @TODO change this
         if (inputFileFormat == "cloudfront") {
             r.ReadLine();
             r.ReadLine();
