@@ -3,9 +3,7 @@ logalyzer
 
 CloudFront and Nginx log analyzer
 
-This was originally created to help parsing the log files of CloudFront and get some statistics out of it.
-
-A big thank you goes to [motain GmbH](http://motain.de) for allowing this to be open sourced.
+This was originally created to help parsing the log files of CloudFront and get some statistics out of them.
 
 
 Parameters
@@ -34,6 +32,7 @@ Parameter | Description
 ```su```   | Display a separator every Nth accessed URLs. If 0 is passed then all fallback to default. This must be used with ```-s```. Default ```100```
 ```v```    | Verbose. Default ```false```
 
+
 Usage
 ---
 
@@ -57,15 +56,21 @@ Performance
 
 This should be highly performant due to GO mostly but it's also depending on the used hardware.
 On my machine, Intel Core i7-3635QM, 12GB and SSD for parsing:
-```bash
-logalyzer -a=true -fmt="cloudfront" -dir="/path/" -p="http://localhost" -s -hs=true -iqs=true
-```
 
 type | value
 ----|------
 files | 5382
 total size | 14GB
 avg load before test | 0.40
+
+using:
+```bash
+logalyzer -a=true -fmt="cloudfront" -dir="/path/" -p="http://localhost" -s -hs=true -iqs=true
+```
+
+type | value
+----|------
+max load | 1.40
 time logalyzer | 200,25s user 5,99s system 97% cpu 3:31,00 total
 Total unique URLs | 69321
 Total URLs accesed | 50573946
@@ -85,4 +90,18 @@ Total URLs accesed | 12243949
 
 Disclaimer
 ----
+
 Please note that I've generated the above files for demo purposes only and they don't reflect in any way, shape or form any real data that I may or may not have access to.
+
+
+Thank you
+---
+
+A big thank you goes to [motain GmbH](http://motain.de) for allowing this to be open sourced.
+
+
+Final word
+---
+
+Some of the CloudFront analyzers on the Internet can cost a lot of money. If you do happen to use this, please help me improving it by submitting pull requests or just sending me a thank you on Twitter: ```@dlsniper```
+If you make changes on your own environment, please stick to the license and add them back here as well. Thanks.
