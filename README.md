@@ -56,22 +56,31 @@ Performance
 ---
 
 This should be highly performant due to GO mostly but it's also depending on the used hardware.
-On my machine, Intel Core i7-3635QM, 12GB and SSD using the following command:
+On my machine, Intel Core i7-3635QM, 12GB and SSD for parsing:
+```bash
+logalyzer -a=true -fmt="cloudfront" -dir="/path/" -p="http://localhost" -s -hs=true -iqs=true
+```
+
+type | value
+----|------
+files | 5382
+total size | 14GB
+avg load before test | 0.40
+time logalyzer | 200,25s user 5,99s system 97% cpu 3:31,00 total
+Total unique URLs | 69321
+Total URLs accesed | 50573946
+
+I have the following:
 ```bash
 logalyzer -a=true -fmt="cloudfront" -dir="/path/" -p="http://localhost" -cfrt="Pass" -s -hs=true -iqs=true
 ```
-for parsing:
-5382 files totaling 14GB
-avg load before test: 0.40
-time logalyzer 200,25s user 5,99s system 97% cpu 3:31,00 total
-Total unique URLs: 69321
-Total URLs accesed: 50573946
 
-I have the following:
-max load: 1.30
-time logalyzer 187,30s user 6,10s system 98% cpu 3:17,06 total
-Total unique URLs: 65377
-Total URLs accesed: 12243949
+type | value
+----|------
+max load | 1.30
+time logalyzer | 187,30s user 6,10s system 98% cpu 3:17,06 total
+Total unique URLs | 65377
+Total URLs accesed | 12243949
 
 
 Disclaimer
