@@ -130,6 +130,10 @@ func parseCloudfrontLine(line *string) (string, int64, bool) {
 		return "", 0, false
 	}
 
+	if verbose {
+		log.Printf("%s\n", *line)
+	}
+
 	cfRT := splitUrl[13]
 
 	if urlRegEx != "" && urlRegEx != ".*" && !compiledUrlRegEx.Match([]byte(splitUrl[7])) {
@@ -138,11 +142,11 @@ func parseCloudfrontLine(line *string) (string, int64, bool) {
 
 	stringUrl := splitUrl[7]
 
-	if stringUrl[len(stringUrl) - 1:] != "/" {
-		if stringUrl[len(stringUrl) - 4:len(stringUrl) - 3] != "." &&
-			stringUrl[len(stringUrl) - 5:len(stringUrl) - 4] != "." {
-			stringUrl += "/"
-		}
+	if stringUrl[len(stringUrl)-1:] != "/" &&
+		stringUrl[len(stringUrl)-3:len(stringUrl)-2] != "." &&
+		stringUrl[len(stringUrl)-4:len(stringUrl)-3] != "." &&
+		stringUrl[len(stringUrl)-5:len(stringUrl)-4] != "." {
+		stringUrl += "/"
 	}
 
 	if splitUrl[11] != "-" {
